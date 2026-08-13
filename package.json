@@ -1,0 +1,18 @@
+{
+  "name": "razorpay-balance-tracker",
+  "version": "1.0.0",
+  "description": "Self-hosted tracker showing the exact net amount Razorpay credited to your bank, behind Firebase login (restricted to specific UIDs).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.0.0",
+    "razorpay": "^2.9.4"
+  }
+}
