@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Razorpay Tracker</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --text: #eaeaf0;
+    --muted: #8b8fa3;
+    --accent: #4ade80;
+    --accent2: #60a5fa;
+    --accent3: #fbbf24;
+    --error: #f87171;
+    --line: #262a35;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 20px;
+  }
+
+  /* ── Auth overlay (same Firebase login as the ICAN app) ── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .overlay.hidden { display: none; }
+  .authCard {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 36px 40px;
+    width: 340px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    text-align: center;
+  }
+  .authCard h1 { font-size: 20px; margin: 0 0 4px; }
+  .authCard .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  .field {
+    width: 100%;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+  }
+  .field:focus { border-color: var(--accent2); }
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--accent2);
+    color: #08131f;
+    margin-bottom: 10px;
+  }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn.google { background: #fff; color: #222; }
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    margin: 14px 0;
+  }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .err {
+    color: var(--error);
+    font-size: 13px;
+    min-height: 18px;
+    margin: 4px 0 10px;
+  }
+  .note { color: var(--muted); font-size: 12px; margin-top: 14px; }
+
+  /* ── Main view ── */
+  .topbar {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar .title { font-size: 16px; font-weight: 600; }
+  .signout {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .signout:hover { color: var(--text); }
+  .hidden { display: none !important; }
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 28px 32px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    flex: 1;
+    min-width: 250px;
+  }
+  .label {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .amount {
+    font-size: 32px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+  .amount.total { color: var(--accent); }
+  .amount.month { color: var(--accent2); }
+  .amount.last { color: var(--accent3); }
+  .amount.error { color: var(--error); font-size: 16px; }
+  .note { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .updated {
+    max-width: 900px;
+    margin: 20px auto 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Auth overlay — same Firebase login as the ICAN app -->
+  <div class="overlay" id="authOverlay">
+    <div class="authCard">
+      <h1>Razorpay Tracker</h1>
+      <div class="sub">Sign in to view settlement details</div>
+      <input class="field" id="authEmail" type="email" placeholder="Email" autocomplete="email" />
+      <input class="field" id="authPass" type="password" placeholder="Password" autocomplete="current-password" />
+      <div class="err" id="authErr"></div>
+      <button class="btn" id="authSubmit">Login</button>
+      <div class="divider">or</div>
+      <button class="btn google" id="googleBtn">Continue with Google</button>
+      <div class="note">Access is restricted to authorized accounts only.</div>
+    </div>
+  </div>
+
+  <!-- Main view -->
+  <div class="topbar">
+    <div class="title">Razorpay Tracker</div>
+    <button class="signout hidden" id="signOutBtn">Sign out</button>
+  </div>
+  <div class="wrap">
+    <div class="card">
+      <div class="label"><span class="dot"></span>Credited to Bank</div>
+      <div class="amount total" id="total">Loading…</div>
+      <div class="note">Exact net after Razorpay fees + tax, all time</div>
+    </div>
+    <div class="card">
+      <div class="label">This Month</div>
+      <div class="amount month" id="month">Loading…</div>
+      <div class="note">Exact net credited since the 1st (IST)</div>
+    </div>
+    <div class="card">
+      <div class="label">Last Settlement</div>
+      <div class="amount last" id="last">Loading…</div>
+      <div class="note">Exact net from the most recent settlement</div>
+    </div>
+  </div>
+  <div class="updated" id="updated"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+// Same Firebase project/config as the ICAN app
+const firebaseConfig = {
+  apiKey: "AIzaSyDi3IlRgB7vn1YaA6k_R83h9W2XR5nwheo",
+  authDomain: "ican-242af.firebaseapp.com",
+  projectId: "ican-242af",
+  storageBucket: "ican-242af.firebasestorage.app",
+  messagingSenderId: "156846015611",
+  appId: "1:156846015611:web:f2e0784a0df5ba4f4acede",
+  measurementId: "G-TXGDJTWJNT"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+const overlay = document.getElementById('authOverlay');
+const signOutBtn = document.getElementById('signOutBtn');
+const errEl = document.getElementById('authErr');
+const totalEl = document.getElementById('total');
+const monthEl = document.getElementById('month');
+const lastEl = document.getElementById('last');
+const updatedEl = document.getElementById('updated');
+const cards = [totalEl, monthEl, lastEl];
+const formatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 2,
+});
+
+function setErr(msg) { errEl.textContent = msg || ''; }
+
+function setCardsError(msg) {
+  cards.forEach(el => { el.textContent = 'Unavailable'; el.classList.add('error'); });
+  updatedEl.textContent = msg;
+}
+
+async function loadBalance() {
+  if (!auth.currentUser) return;
+  try {
+    // getIdToken() reuses a cached token and auto-refreshes near expiry
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch('/api/balance', {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    const data = await res.json();
+
+    if (res.status === 401) { // token invalid/expired
+      await signOut(auth);
+      return;
+    }
+    if (res.status === 403) {
+      setCardsError('Access denied — this account is not authorized for the tracker.');
+      return;
+    }
+    if (data.error) {
+      setCardsError(data.error);
+      return;
+    }
+    cards.forEach(el => el.classList.remove('error'));
+    totalEl.textContent = formatter.format(data.totalNetRupees);
+    monthEl.textContent = formatter.format(data.thisMonthNetRupees);
+    lastEl.textContent = formatter.format(data.lastSettlementNetRupees);
+    updatedEl.textContent = 'Updated ' + new Date(data.updatedAt).toLocaleString('en-IN');
+  } catch (e) {
+    setCardsError('Connection error');
+  }
+}
+
+function showLogin() {
+  overlay.classList.remove('hidden');
+  signOutBtn.classList.add('hidden');
+  cards.forEach(el => { el.textContent = 'Loading…'; el.classList.remove('error'); });
+  updatedEl.textContent = '';
+}
+function hideLogin() {
+  overlay.classList.add('hidden');
+  signOutBtn.classList.remove('hidden');
+}
+
+onAuthStateChanged(auth, user => {
+  if (user) {
+    hideLogin();
+    loadBalance();
+  } else {
+    showLogin();
+  }
+});
+setInterval(loadBalance, 30000);
+
+document.getElementById('authSubmit').addEventListener('click', async () => {
+  setErr('');
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  if (!email || !pass) { setErr('Please fill in all fields.'); return; }
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (err) {
+    const msgs = {
+      'auth/invalid-email': 'Invalid email address.',
+      'auth/user-not-found': 'No account found.',
+      'auth/wrong-password': 'Wrong password. Try again.',
+      'auth/invalid-credential': 'Wrong email or password.',
+      'auth/too-many-requests': 'Too many attempts. Try again later.',
+    };
+    setErr(msgs[err.code] || err.message);
+  }
+});
+
+document.getElementById('googleBtn').addEventListener('click', async () => {
+  setErr('');
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (err) {
+    if (err.code !== 'auth/popup-closed-by-user') setErr('Google sign-in failed. Try again.');
+  }
+});
+
+signOutBtn.addEventListener('click', () => signOut(auth));
+
+// Enter key submits login
+document.getElementById('authPass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('authSubmit').click();
+});
+</script>
+</body>
+</html>
